@@ -5,6 +5,7 @@ from app.models.catalog import CourseCatalog
 from app.models.cohort import Cohort
 from app.models.major import Major
 from app.models.curriculum import CurriculumItem
+from app.models.password_reset import PasswordResetOTP
 
 __all__ = [
     "User",
@@ -14,4 +15,5 @@ __all__ = [
     "Cohort",
     "Major",
     "CurriculumItem",
+    "PasswordResetOTP",
 ]

@@ -10,6 +10,7 @@ from app.models import (  # noqa: F401
     CourseCatalog,
     CurriculumItem,
     Major,
+    PasswordResetOTP,
     Semester,
     User,
 )

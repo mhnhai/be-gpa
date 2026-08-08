@@ -7,10 +7,18 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.deps import get_current_user
 from app.core.security import create_access_token
+from app.crud import password_reset as password_reset_crud
 from app.crud import user as user_crud
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.auth import Token
+from app.schemas.auth import (
+    ForgotPasswordRequest,
+    ForgotPasswordResponse,
+    ResetPasswordRequest,
+    Token,
+    VerifyOTPRequest,
+    VerifyOTPResponse,
+)
 from app.schemas.user import UserCreate, UserResponse, UserUpdateProfile
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
@@ -55,6 +63,45 @@ def login(
         expires_delta=access_token_expires,
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.post("/forgot-password", response_model=ForgotPasswordResponse)
+def forgot_password(data: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """Gửi OTP 6 số tới email (hiệu lực 5 phút)."""
+    try:
+        return password_reset_crud.request_password_reset(db, data.email)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        )
+
+
+@router.post("/verify-otp", response_model=VerifyOTPResponse)
+def verify_otp(data: VerifyOTPRequest, db: Session = Depends(get_db)):
+    """Xác thực OTP → nhận reset_token để đặt mật khẩu mới."""
+    try:
+        return password_reset_crud.verify_otp(db, data.email, data.otp)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.post("/reset-password")
+def reset_password(data: ResetPasswordRequest, db: Session = Depends(get_db)):
+    """Đặt mật khẩu mới bằng reset_token."""
+    if data.new_password != data.confirm_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Mật khẩu xác nhận không khớp",
+        )
+    try:
+        return password_reset_crud.reset_password(
+            db, data.reset_token, data.new_password
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
 
 @router.get("/me", response_model=UserResponse)
