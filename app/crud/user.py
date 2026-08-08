@@ -2,11 +2,11 @@ from typing import Optional
 
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.security import get_password_hash
+from app.core.security import get_password_hash, verify_password
 from app.models.cohort import Cohort
 from app.models.major import Major
 from app.models.user import User
-from app.schemas.user import UserCreate, UserUpdateProfile
+from app.schemas.user import ChangePasswordRequest, UserCreate, UserUpdateProfile
 
 
 def create_user(db: Session, user: UserCreate) -> User:
@@ -62,33 +62,43 @@ def get_user_by_email(db: Session, email: str) -> Optional[User]:
 def update_user_profile(
     db: Session, user: User, data: UserUpdateProfile
 ) -> User:
+    """Chỉ cập nhật email và full_name."""
     payload = data.model_dump(exclude_unset=True)
 
-    if "cohort_id" in payload and payload["cohort_id"] is not None:
-        if not db.query(Cohort).filter(Cohort.id == payload["cohort_id"]).first():
-            raise ValueError("cohort_id không hợp lệ")
+    if "email" in payload and payload["email"] is not None:
+        new_email = str(payload["email"]).strip()
+        existing = (
+            db.query(User)
+            .filter(User.email.ilike(new_email), User.id != user.id)
+            .first()
+        )
+        if existing:
+            raise ValueError("Email đã được sử dụng bởi tài khoản khác")
+        user.email = new_email
 
-    if "major_id" in payload and payload["major_id"] is not None:
-        major = db.query(Major).filter(Major.id == payload["major_id"]).first()
-        if not major:
-            raise ValueError("major_id không hợp lệ")
-        if major.major_type == "common":
-            raise ValueError("User phải chọn ngành riêng (specific), không chọn ngành chung")
-        cohort_id = payload.get("cohort_id", user.cohort_id)
-        if major.cohort_id and cohort_id and major.cohort_id != cohort_id:
-            raise ValueError("Ngành học không thuộc khóa học đã chọn")
-
-    for field, value in payload.items():
-        setattr(user, field, value)
+    if "full_name" in payload:
+        user.full_name = payload["full_name"]
 
     db.commit()
     db.refresh(user)
     return get_user(db, user.id) or user
 
 
-def authenticate_user(db: Session, username: str, password: str) -> Optional[User]:
-    from app.core.security import verify_password
+def change_password(
+    db: Session, user: User, data: ChangePasswordRequest
+) -> None:
+    if data.new_password != data.confirm_password:
+        raise ValueError("Mật khẩu xác nhận không khớp")
+    if not verify_password(data.old_password, user.hashed_password):
+        raise ValueError("Mật khẩu cũ không đúng")
+    if verify_password(data.new_password, user.hashed_password):
+        raise ValueError("Mật khẩu mới phải khác mật khẩu cũ")
 
+    user.hashed_password = get_password_hash(data.new_password)
+    db.commit()
+
+
+def authenticate_user(db: Session, username: str, password: str) -> Optional[User]:
     user = get_user_by_username(db, username)
     if not user:
         return None

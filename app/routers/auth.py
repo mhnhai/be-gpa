@@ -19,7 +19,12 @@ from app.schemas.auth import (
     VerifyOTPRequest,
     VerifyOTPResponse,
 )
-from app.schemas.user import UserCreate, UserResponse, UserUpdateProfile
+from app.schemas.user import (
+    ChangePasswordRequest,
+    UserCreate,
+    UserResponse,
+    UserUpdateProfile,
+)
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
@@ -120,8 +125,22 @@ def update_me(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Cập nhật hồ sơ: full_name, cohort_id, major_id"""
+    """Cập nhật hồ sơ: chỉ email và họ tên."""
     try:
         return user_crud.update_user_profile(db, current_user, data)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.post("/change-password")
+def change_password(
+    data: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Đổi mật khẩu: cần mật khẩu cũ + mật khẩu mới."""
+    try:
+        user_crud.change_password(db, current_user, data)
+        return {"message": "Đổi mật khẩu thành công"}
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
