@@ -17,15 +17,20 @@ def list_majors(
     major_type: Optional[str] = Query(
         None, description="Lọc theo loại: common | specific"
     ),
+    cohort_id: Optional[int] = Query(
+        None, description="Chỉ lấy ngành thuộc khóa học này"
+    ),
     db: Session = Depends(get_db),
 ):
-    """Danh sách ngành học (chung / riêng)"""
+    """Danh sách ngành học. Dùng cohort_id để lọc ngành theo khóa (K50/K51...)."""
     if major_type and major_type not in ("common", "specific"):
         raise HTTPException(
             status_code=400,
             detail="major_type phải là 'common' hoặc 'specific'",
         )
-    return major_crud.get_majors(db, major_type=major_type)
+    return major_crud.get_majors(
+        db, major_type=major_type, cohort_id=cohort_id
+    )
 
 
 @router.post("/", response_model=MajorResponse, status_code=status.HTTP_201_CREATED)
@@ -34,8 +39,8 @@ def create_major(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if major_crud.get_major_by_name(db, data.name):
-        raise HTTPException(status_code=400, detail="Tên ngành đã tồn tại")
+    if major_crud.get_major_by_code(db, data.code) if data.code else None:
+        raise HTTPException(status_code=400, detail="Mã ngành đã tồn tại")
     return major_crud.create_major(db, data)
 
 

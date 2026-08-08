@@ -39,3 +39,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS cohort_id INTEGER REFERENCES cohorts(
 ALTER TABLE users ADD COLUMN IF NOT EXISTS major_id INTEGER REFERENCES majors(id);
 CREATE INDEX IF NOT EXISTS ix_users_cohort_id ON users (cohort_id);
 CREATE INDEX IF NOT EXISTS ix_users_major_id ON users (major_id);
+
+-- Ngành gắn theo khóa (K50/K51...)
+ALTER TABLE majors ADD COLUMN IF NOT EXISTS cohort_id INTEGER REFERENCES cohorts(id);
+CREATE INDEX IF NOT EXISTS ix_majors_cohort_id ON majors (cohort_id);

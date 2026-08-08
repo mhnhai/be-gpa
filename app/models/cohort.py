@@ -17,3 +17,4 @@ class Cohort(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     users = relationship("User", back_populates="cohort")
+    majors = relationship("Major", back_populates="cohort")

@@ -18,6 +18,10 @@ def create_user(db: Session, user: UserCreate) -> User:
             raise ValueError("major_id không hợp lệ")
         if major.major_type == "common":
             raise ValueError("User phải chọn ngành riêng (specific), không chọn ngành chung")
+        if user.cohort_id and major.cohort_id and major.cohort_id != user.cohort_id:
+            raise ValueError("Ngành học không thuộc khóa học đã chọn")
+        if major.cohort_id and not user.cohort_id:
+            raise ValueError("Phải chọn khóa học tương ứng với ngành")
 
     db_user = User(
         email=user.email,
@@ -70,6 +74,9 @@ def update_user_profile(
             raise ValueError("major_id không hợp lệ")
         if major.major_type == "common":
             raise ValueError("User phải chọn ngành riêng (specific), không chọn ngành chung")
+        cohort_id = payload.get("cohort_id", user.cohort_id)
+        if major.cohort_id and cohort_id and major.cohort_id != cohort_id:
+            raise ValueError("Ngành học không thuộc khóa học đã chọn")
 
     for field, value in payload.items():
         setattr(user, field, value)

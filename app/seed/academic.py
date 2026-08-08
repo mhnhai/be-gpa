@@ -1,7 +1,8 @@
-"""Seed khóa học, ngành học (chung/riêng) và CTĐT.
+"""Seed khóa học, ngành học (gắn theo khóa) và CTĐT.
 
-Quy tắc môn chung: chỉ những mã xuất hiện trong CẢ 3 CTĐT
-(Luật tư pháp K50, Luật hành chính K50, Hóa học K51).
+Quy tắc:
+- Ngành riêng gắn 1 khóa: K50 → Luật tư pháp / Luật hành chính; K51 → Hóa học
+- Môn chung = giao của 3 CTĐT, cohort_id = NULL
 """
 
 from sqlalchemy.orm import Session
@@ -19,14 +20,14 @@ DEFAULT_COHORTS = [
     ("K52", "Khóa 52"),
 ]
 
+# (code, name, major_type, description, cohort_code|None)
 DEFAULT_MAJORS = [
-    ("COMMON", "Môn học chung", "common", "Môn trùng cả 3 CTĐT (Luật tư pháp, Luật hành chính, Hóa học)"),
-    ("LAW", "Luật tư pháp", "specific", "Ngành Luật tư pháp (K50)"),
-    ("LAW_ADMIN", "Luật hành chính", "specific", "Ngành Luật hành chính (K50)"),
-    ("CHEM", "Hóa học", "specific", "Ngành Hóa học (K51)"),
+    ("COMMON", "Môn học chung", "common", "Môn trùng cả 3 CTĐT", None),
+    ("LAW", "Luật tư pháp", "specific", "Ngành Luật tư pháp — chỉ K50", "K50"),
+    ("LAW_ADMIN", "Luật hành chính", "specific", "Ngành Luật hành chính — chỉ K50", "K50"),
+    ("CHEM", "Hóa học", "specific", "Ngành Hóa học — chỉ K51", "K51"),
 ]
 
-# CTĐT gốc Luật tư pháp K50
 LAW_JUDICIAL_FULL = [
     "KL051", "ML007", "XH028", "XH011E", "KL233E", "KN001E", "KN002E",
     "KL101", "KL102", "KL301", "KL302", "KL113E", "KL105", "KL115",
@@ -38,19 +39,8 @@ LAW_JUDICIAL_FULL = [
     "KL406", "KL344", "KL420E", "KL370",
 ]
 
-# CTĐT gốc Luật hành chính K50
-LAW_ADMIN_FULL = [
-    "KL051", "ML007", "XH028", "XH011E", "KL233E", "KN001E", "KN002E",
-    "KL101", "KL102", "KL301", "KL302", "KL113E", "KL105", "KL115",
-    "KL118", "KL119", "KL231", "KL133", "KL131", "KL132", "KL122",
-    "KL123", "KL124", "KL114", "KL116", "KL117", "KL303", "KL304",
-    "KL210", "KL353", "KL365", "KL371", "KL227", "KL327", "KL328",
-    "KL375", "KL376", "KL377", "KL383", "KL385", "KL335", "KL404",
-    "KL386", "KL378", "KL380E", "KL211E", "KL212E", "KL229E", "KL333",
-    "KL406", "KL344", "KL420E", "KL370",
-]
+LAW_ADMIN_FULL = list(LAW_JUDICIAL_FULL)
 
-# CTĐT gốc Hóa học K51
 CHEM_FULL = [
     "KL001E", "ML007", "XH028", "XH011", "XH012", "XH014", "KN001E", "KN002E",
     "TN059", "TN044", "TN048", "TN049", "TN042", "TN043", "TN427E",
@@ -63,11 +53,9 @@ CHEM_FULL = [
     "TN465E", "TN313E", "TN339", "TN327E", "TN387E", "TN300E", "TN338",
 ]
 
-# Chỉ mã nằm trong CẢ 3 CTĐT
 COMMON_COURSE_CODES = sorted(
     set(LAW_JUDICIAL_FULL) & set(LAW_ADMIN_FULL) & set(CHEM_FULL)
 )
-# => ML007, XH028, KN001E, KN002E
 
 LAW_JUDICIAL_COURSE_CODES = [c for c in LAW_JUDICIAL_FULL if c not in COMMON_COURSE_CODES]
 LAW_ADMIN_COURSE_CODES = [c for c in LAW_ADMIN_FULL if c not in COMMON_COURSE_CODES]
@@ -122,18 +110,22 @@ def seed_cohorts(db: Session) -> int:
 
 def seed_majors(db: Session) -> int:
     added = 0
-    for code, name, major_type, description in DEFAULT_MAJORS:
+    for code, name, major_type, description, cohort_code in DEFAULT_MAJORS:
+        cohort_id = None
+        if cohort_code:
+            cohort = db.query(Cohort).filter(Cohort.code == cohort_code).first()
+            if not cohort:
+                print(f"⚠️  Chưa có cohort {cohort_code}, bỏ qua ngành {code}")
+                continue
+            cohort_id = cohort.id
+
         existing = db.query(Major).filter(Major.code == code).first()
         if existing:
-            if (
-                existing.name != name
-                or existing.description != description
-                or existing.major_type != major_type
-            ):
-                existing.name = name
-                existing.description = description
-                existing.major_type = major_type
-                db.commit()
+            existing.name = name
+            existing.description = description
+            existing.major_type = major_type
+            existing.cohort_id = cohort_id
+            db.commit()
             continue
 
         by_name = db.query(Major).filter(Major.name == name).first()
@@ -141,6 +133,7 @@ def seed_majors(db: Session) -> int:
             by_name.code = code
             by_name.major_type = major_type
             by_name.description = description
+            by_name.cohort_id = cohort_id
             db.commit()
             continue
 
@@ -151,6 +144,7 @@ def seed_majors(db: Session) -> int:
                 old.code = code
                 old.major_type = major_type
                 old.description = description
+                old.cohort_id = cohort_id
                 db.commit()
                 continue
 
@@ -160,6 +154,7 @@ def seed_majors(db: Session) -> int:
                 name=name,
                 major_type=major_type,
                 description=description,
+                cohort_id=cohort_id,
                 is_active=True,
             )
         )
