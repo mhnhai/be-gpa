@@ -1,16 +1,18 @@
-import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .database import engine, Base, SessionLocal
-from .routers import auth, semesters, courses, gpa, catalog
-from .seed_catalog import seed_catalog
+from app.core.config import settings
+from app.db.base import Base
+from app.db.session import SessionLocal, engine
+from app.models import Course, CourseCatalog, Semester, User  # noqa: F401
+from app.routers import auth, catalog, courses, gpa, semesters
+from app.seed.catalog import seed_catalog
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
 
-# Seed course catalog
-def init_db():
+
+def init_db() -> None:
     db = SessionLocal()
     try:
         added = seed_catalog(db)
@@ -19,16 +21,20 @@ def init_db():
     finally:
         db.close()
 
+
 init_db()
 
 app = FastAPI(
     title="GPA Calculator API",
     description="API để tính điểm trung bình tích lũy (GPA) cho sinh viên",
-    version="1.0.0"
+    version="1.0.0",
 )
 
-# CORS configuration - allow frontend origins
-allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
+allowed_origins = [
+    origin.strip()
+    for origin in settings.ALLOWED_ORIGINS.split(",")
+    if origin.strip()
+]
 
 app.add_middleware(
     CORSMiddleware,
@@ -38,7 +44,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
 app.include_router(auth.router)
 app.include_router(semesters.router)
 app.include_router(courses.router)
@@ -51,11 +56,10 @@ def root():
     return {
         "message": "Chào mừng đến với GPA Calculator API",
         "docs": "/docs",
-        "redoc": "/redoc"
+        "redoc": "/redoc",
     }
 
 
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
-

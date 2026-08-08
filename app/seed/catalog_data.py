@@ -1,4 +1,4 @@
-"""Script để thêm dữ liệu môn học vào kho"""
+"""Danh sách môn học mặc định để seed vào course_catalog."""
 
 COURSE_CATALOG = [
     # Môn chung
@@ -218,42 +218,3 @@ COURSE_CATALOG = [
     ("TN246", "Tiểu luận tốt nghiệp - Hóa học", 4),
     ("TN575", "Thực tập cơ sở - Hóa học", 6),
 ]
-
-
-def seed_catalog(db):
-    """Thêm dữ liệu môn học vào database"""
-    from .models import CourseCatalog
-    
-    added = 0
-    updated = 0
-    
-    for course_code, course_name, credits in COURSE_CATALOG:
-        # Check if course already exists
-        existing = db.query(CourseCatalog).filter(
-            CourseCatalog.course_code == course_code
-        ).first()
-        
-        if existing:
-            # Update if name or credits changed
-            if existing.course_name != course_name or existing.credits != credits:
-                existing.course_name = course_name
-                existing.credits = credits
-                updated += 1
-        else:
-            new_course = CourseCatalog(
-                course_code=course_code,
-                course_name=course_name,
-                credits=credits,
-                is_active=True
-            )
-            db.add(new_course)
-            added += 1
-    
-    db.commit()
-    
-    if added > 0:
-        print(f"✅ Đã thêm {added} môn học mới vào kho")
-    if updated > 0:
-        print(f"✅ Đã cập nhật {updated} môn học trong kho")
-    
-    return added + updated

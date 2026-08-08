@@ -1,12 +1,14 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from ..database import get_db
-from ..schemas import CourseCatalogResponse, BulkAddCourses, CourseResponse
-from ..auth import get_current_user
-from ..models import User, CourseCatalog, Course, Semester
-from ..utils import convert_score_to_letter_and_gpa
+from app.core.deps import get_current_user
+from app.crud import catalog as catalog_crud
+from app.db.session import get_db
+from app.models.user import User
+from app.schemas.catalog import BulkAddCourses, CourseCatalogResponse
+from app.schemas.course import CourseResponse
 
 router = APIRouter(prefix="/api/catalog", tags=["Course Catalog"])
 
@@ -14,85 +16,49 @@ router = APIRouter(prefix="/api/catalog", tags=["Course Catalog"])
 @router.get("/", response_model=List[CourseCatalogResponse])
 def get_catalog(
     search: Optional[str] = Query(None, description="Tìm kiếm theo mã hoặc tên môn học"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Lấy danh sách môn học trong kho"""
-    query = db.query(CourseCatalog).filter(CourseCatalog.is_active == True)
-    
-    if search:
-        search_term = f"%{search}%"
-        query = query.filter(
-            (CourseCatalog.course_code.ilike(search_term)) |
-            (CourseCatalog.course_name.ilike(search_term))
-        )
-    
-    return query.order_by(CourseCatalog.course_code).all()
+    return catalog_crud.get_catalog(db, search)
 
 
 @router.post("/bulk-add", response_model=List[CourseResponse])
 def bulk_add_courses(
     data: BulkAddCourses,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Thêm nhiều môn học từ kho vào học kỳ"""
-    # Verify semester belongs to user
-    semester = db.query(Semester).filter(
-        Semester.id == data.semester_id,
-        Semester.user_id == current_user.id
-    ).first()
-    
-    if not semester:
+    result = catalog_crud.bulk_add_courses(db, data, current_user.id)
+
+    if result is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Không tìm thấy học kỳ"
+            detail="Không tìm thấy học kỳ",
         )
-    
-    # Get catalog courses
-    catalog_courses = db.query(CourseCatalog).filter(
-        CourseCatalog.id.in_(data.course_ids),
-        CourseCatalog.is_active == True
-    ).all()
-    
-    if not catalog_courses:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Không tìm thấy môn học nào trong kho"
+
+    # Empty list with requested IDs may mean none found in catalog
+    if result == [] and data.course_ids:
+        from app.models.catalog import CourseCatalog
+
+        found = (
+            db.query(CourseCatalog)
+            .filter(
+                CourseCatalog.id.in_(data.course_ids),
+                CourseCatalog.is_active == True,  # noqa: E712
+            )
+            .count()
         )
-    
-    # Check for existing courses in semester
-    existing_codes = {c.course_code for c in semester.courses}
-    
-    added_courses = []
-    for catalog_course in catalog_courses:
-        if catalog_course.course_code in existing_codes:
-            continue  # Skip if already exists
-        
-        letter_grade, grade_point = convert_score_to_letter_and_gpa(data.default_score)
-        
-        new_course = Course(
-            course_code=catalog_course.course_code,
-            course_name=catalog_course.course_name,
-            credits=catalog_course.credits,
-            score=data.default_score,
-            letter_grade=letter_grade,
-            grade_point=grade_point,
-            semester_id=data.semester_id
-        )
-        db.add(new_course)
-        added_courses.append(new_course)
-    
-    db.commit()
-    
-    for course in added_courses:
-        db.refresh(course)
-    
-    return added_courses
+        if found == 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Không tìm thấy môn học nào trong kho",
+            )
+
+    return result
 
 
 @router.get("/count")
 def get_catalog_count(db: Session = Depends(get_db)):
     """Đếm số môn học trong kho"""
-    count = db.query(CourseCatalog).filter(CourseCatalog.is_active == True).count()
-    return {"count": count}
-
+    return {"count": catalog_crud.get_catalog_count(db)}

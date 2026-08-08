@@ -12,15 +12,7 @@ Bảng quy đổi điểm:
 
 
 def convert_score_to_letter_and_gpa(score: float) -> tuple[str, float]:
-    """
-    Chuyển đổi điểm số (thang 10) sang điểm chữ và điểm hệ 4.
-    
-    Args:
-        score: Điểm số thang 10
-        
-    Returns:
-        Tuple (letter_grade, grade_point)
-    """
+    """Chuyển đổi điểm số (thang 10) sang điểm chữ và điểm hệ 4."""
     if score >= 9.0:
         return ("A", 4.0)
     elif score >= 8.0:
@@ -43,26 +35,15 @@ def calculate_gpa(courses: list) -> tuple[float, int]:
     """
     Tính điểm trung bình theo công thức:
     GPA = Σ(ai * Xi) / Σ(ai)
-    
-    Trong đó:
-    - ai: số tín chỉ môn i
-    - Xi: điểm hệ 4 môn i
-    
-    Args:
-        courses: Danh sách các môn học
-        
-    Returns:
-        Tuple (gpa, total_credits)
     """
     if not courses:
         return (0.0, 0)
-    
+
     total_weighted = sum(course.credits * course.grade_point for course in courses)
     total_credits = sum(course.credits for course in courses)
-    
+
     if total_credits == 0:
         return (0.0, 0)
-    
+
     gpa = total_weighted / total_credits
     return (round(gpa, 2), total_credits)
-
