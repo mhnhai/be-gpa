@@ -11,14 +11,14 @@ from app.crud import user as user_crud
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.auth import Token
-from app.schemas.user import UserCreate, UserResponse
+from app.schemas.user import UserCreate, UserResponse, UserUpdateProfile
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def register(user: UserCreate, db: Session = Depends(get_db)):
-    """Đăng ký tài khoản mới"""
+    """Đăng ký tài khoản mới (có thể kèm cohort_id, major_id)"""
     if user_crud.get_user_by_username(db, user.username):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -29,7 +29,10 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email đã được sử dụng",
         )
-    return user_crud.create_user(db, user)
+    try:
+        return user_crud.create_user(db, user)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
 
 @router.post("/login", response_model=Token)
@@ -55,6 +58,23 @@ def login(
 
 
 @router.get("/me", response_model=UserResponse)
-def get_me(current_user: User = Depends(get_current_user)):
-    """Lấy thông tin người dùng hiện tại"""
-    return current_user
+def get_me(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Lấy thông tin người dùng hiện tại (kèm khóa học, ngành)"""
+    user = user_crud.get_user(db, current_user.id)
+    return user or current_user
+
+
+@router.patch("/me", response_model=UserResponse)
+def update_me(
+    data: UserUpdateProfile,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Cập nhật hồ sơ: full_name, cohort_id, major_id"""
+    try:
+        return user_crud.update_user_profile(db, current_user, data)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -13,8 +13,12 @@ class User(Base):
     username = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     full_name = Column(String)
+    cohort_id = Column(Integer, ForeignKey("cohorts.id"), nullable=True, index=True)
+    major_id = Column(Integer, ForeignKey("majors.id"), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    cohort = relationship("Cohort", back_populates="users")
+    major = relationship("Major", back_populates="users")
     semesters = relationship(
         "Semester",
         back_populates="user",
