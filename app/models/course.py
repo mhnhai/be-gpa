@@ -1,9 +1,8 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.db.base import Base
-from app.db.types import EncryptedFloat
 
 
 class Course(Base):
@@ -13,10 +12,9 @@ class Course(Base):
     course_code = Column(String, nullable=False)
     course_name = Column(String, nullable=False)
     credits = Column(Integer, nullable=False)
-    # Điểm được mã hóa khi lưu DB (Fernet), app vẫn dùng float
-    score = Column(EncryptedFloat, nullable=False)
+    score = Column(Float, nullable=False)
     letter_grade = Column(String)
-    grade_point = Column(EncryptedFloat)
+    grade_point = Column(Float)
     semester_id = Column(Integer, ForeignKey("semesters.id"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
